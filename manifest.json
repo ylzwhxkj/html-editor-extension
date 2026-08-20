@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "网页随手改",
   "description": "让不懂代码的人直接修改网页/HTML演示文稿：点击改文字，工具栏调字号、颜色、行距、对齐；悬停元素可换图、插图、删除、复制；图片支持缩放、移动、裁剪；草稿自动保存，支持导出 HTML 副本和 PDF。",
-  "version": "1.6.3",
+  "version": "1.6.4",
   "permissions": ["activeTab", "scripting", "downloads"],
   "background": {
     "service_worker": "background.js"

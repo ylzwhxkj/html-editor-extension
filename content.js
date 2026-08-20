@@ -32,7 +32,7 @@
     { label: 'Georgia（西文）', value: 'Georgia, "Times New Roman"' },
     { label: 'Courier New（等宽）', value: '"Courier New", monospace' }
   ];
-  const VERSION = '1.6.3'; // 与 manifest.json 保持一致，开启时提示，便于确认新版已生效
+  const VERSION = '1.6.4'; // 与 manifest.json 保持一致，开启时提示，便于确认新版已生效
 
   let enabled = false;
   let dirty = false;
@@ -579,12 +579,15 @@
     const prevMargin = img.style.margin;
 
     if (prevPosition !== 'absolute') {
+      // 先量再改：img 若被 CSS 拉伸（width:100% / flex stretch），转 absolute 的
+      // 瞬间会回缩（或因 containing block 变化而突变），改完再量锁到的就是错误值
+      const frozenW = getComputedStyle(img).width;
       img.style.position = 'absolute';
       img.style.left = ((ir.left - cr.left) / cr.width * 100).toFixed(2) + '%';
       img.style.top = ((ir.top - cr.top) / cr.height * 100).toFixed(2) + '%';
       img.style.margin = '0';
       // 宽度用布局真实值冻结（transform 页面下 getBoundingClientRect 是缩后值）
-      const w = parseFloat(getComputedStyle(img).width);
+      const w = parseFloat(frozenW);
       if (w > 0) img.style.width = w.toFixed(2) + 'px';
     }
 
@@ -854,7 +857,7 @@
   // ---------- 模块移动模式（任意内容块拖到任意位置） ----------
 
   function restoreStyles(el, p) {
-    ['position', 'left', 'top', 'right', 'bottom', 'margin', 'transition', 'width'].forEach((k) => {
+    ['position', 'left', 'top', 'right', 'bottom', 'margin', 'transition', 'width', 'height'].forEach((k) => {
       if (p[k] === '' || p[k] === undefined) el.style.removeProperty(k);
       else el.style.setProperty(k, p[k]);
     });
@@ -917,9 +920,15 @@
         prev = {
           position: el.style.position, left: el.style.left, top: el.style.top,
           right: el.style.right, bottom: el.style.bottom,
-          margin: el.style.margin, transition: el.style.transition, width: el.style.width
+          margin: el.style.margin, transition: el.style.transition, width: el.style.width,
+          height: el.style.height
         };
         if (prev.position !== 'absolute') {
+          // 关键：必须在改 position 之前量尺寸。flex 子项（align-items:stretch 是
+          // flex 默认值，或 flex-grow）的宽度/高度是被容器拉伸的，转 absolute 脱离
+          // 文档流的瞬间会回缩到内容自然尺寸；改完再量，锁定的已是变小后的值
+          const frozenW = getComputedStyle(el).width;
+          const frozenH = getComputedStyle(el).height;
           el.style.position = 'absolute';
           el.style.left = ((ir.left - cr.left) / crW * 100).toFixed(2) + '%';
           el.style.top = ((ir.top - cr.top) / crH * 100).toFixed(2) + '%';
@@ -927,7 +936,13 @@
           // 冻结宽度必须用 computedStyle（布局真实值，不受 transform/取整影响）。
           // 若用 getBoundingClientRect + Math.round：scale 页面会量到缩后宽度、
           // 取整可能少 0.5px，都会让文字被挤成多一行
-          el.style.width = parseFloat(getComputedStyle(el).width).toFixed(2) + 'px';
+          el.style.width = parseFloat(frozenW).toFixed(2) + 'px';
+          // 高度：仅在被拉伸（转 absolute 后回缩）时锁定。auto 高度不锁，
+          // 保留模块内文字编辑后高度自增长的特性
+          const nowH = parseFloat(getComputedStyle(el).height);
+          if (nowH < parseFloat(frozenH) - 0.5) {
+            el.style.height = parseFloat(frozenH).toFixed(2) + 'px';
+          }
         }
         el.style.transition = 'none';
         el.style.boxShadow = '0 10px 30px rgba(0,0,0,.3)';
